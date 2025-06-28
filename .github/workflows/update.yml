@@ -1,0 +1,58 @@
+name: Daily YouTube Data Update
+
+on:
+  schedule:
+    # Run at 9:00 AM JST (0:00 AM UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch:  # Also allow manual triggering
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Create .env file
+        run: |
+          echo "YOUTUBE_API_KEY=${{ secrets.YOUTUBE_API_KEY }}" > .env
+          echo "GOOGLE_SHEETS_ID=${{ secrets.GOOGLE_SHEETS_ID }}" >> .env
+          echo "DEFAULT_SEARCH_QUERY=${{ secrets.DEFAULT_SEARCH_QUERY || 'プログラミング' }}" >> .env
+          echo "MAX_RESULTS=${{ secrets.MAX_RESULTS || 50 }}" >> .env
+      
+      - name: Set up Google credentials
+        run: |
+          echo '${{ secrets.GOOGLE_CREDS_JSON }}' > google_creds.json
+          echo "GOOGLE_CREDS_JSON_PATH=google_creds.json" >> .env
+          
+      - name: Run CSV generator
+        run: |
+          python generate_csv.py
+          
+      - name: Get current date
+        id: date
+        run: |
+          echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
+          
+      - name: Rename output CSV
+        run: |
+          mv youtube_data_*.csv youtube_data_${{ steps.date.outputs.DATE }}.csv
+          
+      - name: Commit and push CSV
+        run: |
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'actions@github.com'
+          git add youtube_data_*.csv
+          git commit -m "Update YouTube data: ${{ steps.date.outputs.DATE }}"
+          git push
+        continue-on-error: true

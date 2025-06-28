@@ -1,0 +1,18 @@
+# Main dependencies
+streamlit==1.35.0
+pandas==2.2.2
+plotly==5.16.0
+python-dotenv==1.0.0
+google-api-python-client==2.94.0
+google-auth==2.22.0
+google-auth-oauthlib==1.0.0
+google-auth-httplib2==0.1.0
+matplotlib==3.10.3
+
+# Google Sheets integration
+gspread==5.10.0
+gspread-dataframe==3.3.1
+
+# Utility packages
+python-dateutil==2.8.2
+pytz==2023.3

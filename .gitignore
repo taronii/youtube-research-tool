@@ -1,0 +1,11 @@
+.env
+*.env
+secrets.toml
+# Python
+__pycache__/
+*.pyc
+.DS_Store
+# VSCode
+.vscode/
+# Streamlit Cloud
+.streamlit/secrets.toml
