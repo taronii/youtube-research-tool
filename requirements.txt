@@ -1,7 +1,7 @@
 # Main dependencies
 streamlit==1.35.0
 pandas==2.2.2
-plotly==5.16.0
+plotly>=5.22.0
 python-dotenv==1.0.0
 google-api-python-client==2.94.0
 google-auth==2.22.0
