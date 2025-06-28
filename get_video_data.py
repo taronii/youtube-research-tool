@@ -16,8 +16,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
+# 環境変数はmain.pyから渡されるAPIキーを使用するため、ここではload_envは不要
+# load_dotenv()
 
 class YouTubeDataAPI:
     @staticmethod
@@ -32,16 +32,16 @@ class YouTubeDataAPI:
         hours, minutes, seconds = match.groups()
         total = (int(hours) if hours else 0) * 3600 + (int(minutes) if minutes else 0) * 60 + (int(seconds) if seconds else 0)
         return total
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(self, api_key: str):
         """
         Initialize the YouTube Data API client
         
         Args:
-            api_key: YouTube API Key (if None, will try to get from environment)
+            api_key: YouTube API Key (required)
         """
-        self.api_key = api_key or os.getenv('YOUTUBE_API_KEY')
+        self.api_key = api_key
         if not self.api_key:
-            raise ValueError("YouTube API key is missing. Please set YOUTUBE_API_KEY environment variable.")
+            raise ValueError("YouTube API key is missing. Please provide a valid API key.")
         
         self.youtube = googleapiclient.discovery.build(
             'youtube', 'v3', developerKey=self.api_key,

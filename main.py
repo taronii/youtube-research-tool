@@ -25,9 +25,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables (for local development)
-# In Streamlit Cloud, use st.secrets instead
-load_dotenv()
+# 環境変数の取得（ローカル開発とStreamlit Cloud両方に対応）
+def get_api_key():
+    # Streamlit Cloudの場合はst.secretsから
+    if 'YOUTUBE_API_KEY' in st.secrets:
+        return st.secrets["YOUTUBE_API_KEY"]
+    # ローカル開発の場合は.envファイルから
+    else:
+        load_dotenv()
+        return os.environ.get("YOUTUBE_API_KEY")
+
+# APIキーを取得
+api_key = get_api_key()
 
 # Function to create a download link for the dataframe
 def get_csv_download_link(df, filename="youtube_data.csv"):
@@ -252,14 +261,10 @@ def main():
     # Sidebar for search options
     st.sidebar.header("検索設定")
     
-    # Get API key
-    if os.getenv('YOUTUBE_API_KEY'):
-        api_key = os.getenv('YOUTUBE_API_KEY')
-    else:
-        # For Streamlit Cloud
-        api_key = st.secrets.get("YOUTUBE_API_KEY", "")
+    # Get API key - get_api_key関数を使用してローカル/.envとStreamlit Cloudの両方に対応
+    api_key = get_api_key()
     
-    # API Key input
+    # API Key input - APIキーが取得できなかった場合はユーザー入力を求める
     if not api_key:
         api_key = st.sidebar.text_input("YouTube API Key", 
                                         type="password",
