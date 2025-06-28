@@ -27,13 +27,24 @@ logger = logging.getLogger(__name__)
 
 # 環境変数の取得（ローカル開発とStreamlit Cloud両方に対応）
 def get_api_key():
-    # Streamlit Cloudの場合はst.secretsから
-    if 'YOUTUBE_API_KEY' in st.secrets:
-        return st.secrets["YOUTUBE_API_KEY"]
-    # ローカル開発の場合は.envファイルから
-    else:
-        load_dotenv()
-        return os.environ.get("YOUTUBE_API_KEY")
+    """環境に応じてAPIキーを取得。
+    優先順位:
+    1. .env（ローカル開発）
+    2. Streamlit Cloud の secrets.toml
+    いずれも無い場合は空文字を返す。
+    """
+    # まず .env を読み込む（存在しなくても問題ない）
+    load_dotenv()
+    env_key = os.environ.get("YOUTUBE_API_KEY")
+    if env_key:
+        return env_key
+
+    # .env に無ければ Streamlit Cloud の secrets を試す
+    try:
+        return st.secrets.get("YOUTUBE_API_KEY", "")
+    except FileNotFoundError:
+        # secrets.toml が無いローカル環境では FileNotFoundError が発生する
+        return ""
 
 # APIキーを取得
 api_key = get_api_key()
