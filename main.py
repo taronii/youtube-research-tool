@@ -1789,7 +1789,7 @@ def main():
                 
                 # チャンネルアナライザーの初期化
                 channel_analyzer = ChannelAnalyzer()
-                youtube_client = YouTubeDataAPI()
+                youtube_client = YouTubeDataAPI(api_key)
                 
                 # チャンネルIDの入力
                 st.write("複数のチャンネルIDをカンマ区切りで入力して比較分析します")
