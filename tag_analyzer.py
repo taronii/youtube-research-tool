@@ -4,7 +4,13 @@ import pandas as pd
 from collections import Counter
 from typing import List, Dict, Tuple, Any
 import matplotlib.pyplot as plt
-import japanize_matplotlib
+# 日本語フォントの設定 (japanize_matplotlibの代わり)
+try:
+    import matplotlib
+    matplotlib.rc('font', family='IPAGothic')  # IPAフォントを指定
+except:
+    # フォント設定に失敗しても続行
+    logging.warning('日本語フォント設定に失敗しました。日本語が正しく表示されない可能性があります。')
 import seaborn as sns
 
 # Configure logging
