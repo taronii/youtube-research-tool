@@ -9,6 +9,7 @@ google-auth-oauthlib==1.0.0
 google-auth-httplib2==0.1.0
 matplotlib==3.10.3
 fonttools==4.58.0
+seaborn==0.13.2
 
 # Google Sheets integration
 gspread==5.10.0
