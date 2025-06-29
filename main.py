@@ -48,6 +48,11 @@ def get_api_key():
 
 # APIキーを取得
 api_key = get_api_key()
+print(f"DEBUG: API Key available: {bool(api_key)}")
+logger.info(f"API Key available: {bool(api_key)}")
+# APIキーがない場合のデバッグ情報
+if not api_key:
+    logger.warning("No API key found in environment variables or Streamlit secrets")
 
 # Function to create a download link for the dataframe
 def get_csv_download_link(df, filename="youtube_data.csv"):
@@ -80,7 +85,7 @@ def format_for_display(df):
         # データフレームのコピーを作成
         df_display = df.copy()
         
-        # 名前の変更と关数調整
+        # 名前の変更と関数調整
         if 'view_count' in df_display.columns:
             df_display['view_count'] = df_display['view_count'].fillna(0).astype(int)
         if 'like_count' in df_display.columns:
@@ -118,165 +123,373 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # スマホ対応用のカスタムCSS追加
+    # セッション状態の初期化 - 全ての重要な変数を確実に初期化
+    if 'channel_comparison_ids_main' not in st.session_state:
+        st.session_state.channel_comparison_ids_main = ""
+    if 'new_search_query' not in st.session_state:
+        st.session_state.new_search_query = ""
+    if 'df' not in st.session_state:
+        st.session_state.df = None
+    if 'processed_df' not in st.session_state:
+        st.session_state.processed_df = None
+    if 'search_history' not in st.session_state:
+        st.session_state.search_history = []
+    if 'video_data' not in st.session_state:
+        st.session_state.video_data = None
+    if 'keywords_data' not in st.session_state:
+        st.session_state.keywords_data = {}
+    if 'combined_df' not in st.session_state:
+        st.session_state.combined_df = None
+    
+    # 視認性を重視したカスタムCSS
     st.markdown("""
     <style>
-        /* モバイルフレンドリーなCSSを追加 */
-        .stButton > button {
-            font-size: 16px;
-            padding: 10px 15px;
-            width: 100%;
+        /* 基本設定 - 読みやすさを最優先 */
+        .main .block-container {
+            padding: 1rem 2rem;
+            max-width: 1200px;
+            background-color: #f8f9fa;
         }
-        .stTextInput > div > div > input, .stTextArea > div > div > textarea {
-            font-size: 16px;
-            padding: 10px;
+        
+        /* テキストの視認性向上 */
+        * {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
-        .stSelectbox > div > div[data-baseweb="select"] > div {
-            font-size: 16px;
-            padding: 5px 10px;
+        
+        h1, h2, h3, h4, h5, h6 {
+            color: #1f2937 !important;
+            font-weight: 600 !important;
+            line-height: 1.4 !important;
         }
-        .stDataFrame {
-            overflow-x: auto;
+        
+        h1 {
+            font-size: 2rem !important;
+            margin-bottom: 1.5rem !important;
+            padding-bottom: 0.5rem !important;
+            border-bottom: 3px solid #3b82f6 !important;
         }
-        .fixed-bottom {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 999;
+        
+        h2 {
+            font-size: 1.5rem !important;
+            margin-bottom: 1rem !important;
+            color: #374151 !important;
         }
-        /* サムネイル画像のレスポンシブ設定 */
-        .thumbnail-container img {
-            width: 100%;
-            max-width: 120px;
-            transition: transform 0.3s;
+        
+        h3 {
+            font-size: 1.25rem !important;
+            margin-bottom: 0.75rem !important;
+            color: #4b5563 !important;
         }
-        .thumbnail-container img:hover {
-            transform: scale(1.2);
+        
+        /* 本文テキストの視認性 */
+        p, div, span, label {
+            color: #374151 !important;
+            line-height: 1.6 !important;
         }
-        /* データテーブルのレスポンシブ設定 */
-        .dataframe-container {
-            overflow-x: auto;
+        
+        /* サイドバーの改善 */
+        .css-1d391kg {
+            background-color: white !important;
+            border-right: 1px solid #e5e7eb !important;
+        }
+        
+        /* カードスタイル - 視認性重視 */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
             margin: 1rem 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e5e7eb;
         }
-        /* CSVダウンロードボタンを画面下部に固定 */
-        .download-button {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 999;
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        
+        /* フォーム要素の改善 */
+        .stTextInput > div > div > input,
+        .stTextArea > div > div > textarea,
+        .stSelectbox > div > div > div {
+            background-color: white !important;
+            border: 2px solid #d1d5db !important;
+            border-radius: 8px !important;
+            padding: 12px 16px !important;
+            font-size: 16px !important;
+            color: #374151 !important;
+            transition: border-color 0.2s ease !important;
+        }
+        
+        .stTextInput > div > div > input:focus,
+        .stTextArea > div > div > textarea:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1) !important;
+        }
+        
+        /* ボタンの改善 - タップしやすく */
+        .stButton > button {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8) !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 8px !important;
+            padding: 12px 24px !important;
+            font-size: 16px !important;
+            font-weight: 600 !important;
+            width: 100% !important;
+            min-height: 48px !important;
+            transition: all 0.2s ease !important;
+            box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2) !important;
+        }
+        
+        .stButton > button:hover {
+            background: linear-gradient(135deg, #1d4ed8, #1e40af) !important;
+            transform: translateY(-1px) !important;
+            box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3) !important;
+        }
+        
+        .stButton > button:active {
+            transform: translateY(0) !important;
+        }
+        
+        /* タブの改善 */
+        .stTabs [data-baseweb="tab-list"] {
+            background-color: #f3f4f6;
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 1rem;
+        }
+        
+        .stTabs [data-baseweb="tab"] {
+            background-color: transparent !important;
+            border-radius: 6px !important;
+            color: #6b7280 !important;
+            font-weight: 500 !important;
+            padding: 8px 16px !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        .stTabs [aria-selected="true"] {
+            background-color: white !important;
+            color: #1f2937 !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1) !important;
+        }
+        
+        /* メトリクスカードの改善 */
+        .metric-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e5e7eb;
+            transition: transform 0.2s ease;
+        }
+        
+        .metric-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 0.5rem;
+        }
+        
+        .metric-label {
+            font-size: 0.875rem;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        
+        /* データテーブルの改善 */
+        .stDataFrame {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e5e7eb;
+        }
+        
+        /* エラー・警告メッセージの改善 */
+        .stAlert {
+            border-radius: 8px !important;
+            border: none !important;
+            font-weight: 500 !important;
+        }
+        
+        .stError {
+            background-color: #fef2f2 !important;
+            color: #dc2626 !important;
+            border-left: 4px solid #dc2626 !important;
+        }
+        
+        .stWarning {
+            background-color: #fffbeb !important;
+            color: #d97706 !important;
+            border-left: 4px solid #d97706 !important;
+        }
+        
+        .stSuccess {
+            background-color: #f0fdf4 !important;
+            color: #16a34a !important;
+            border-left: 4px solid #16a34a !important;
+        }
+        
+        .stInfo {
+            background-color: #eff6ff !important;
+            color: #2563eb !important;
+            border-left: 4px solid #2563eb !important;
+        }
+        
+        /* スピナーの改善 */
+        .stSpinner {
+            text-align: center;
+            color: #3b82f6 !important;
+        }
+        
+        /* レスポンシブ対応 */
+        @media (max-width: 768px) {
+            .main .block-container {
+                padding: 1rem;
+            }
+            
+            h1 {
+                font-size: 1.5rem !important;
+            }
+            
+            .metric-card {
+                padding: 1rem;
+            }
+            
+            .metric-value {
+                font-size: 1.5rem;
+            }
         }
     </style>
     """, unsafe_allow_html=True)
     
-    # サイト全体のスタイルを適用
-    site_css = """
+    # 追加のカスタムスタイル
+    st.markdown("""
     <style>
-    /* 全体のスタイル */
-    .main .block-container {
-        padding-top: 2rem;
-        max-width: 1200px;
+    /* CSVダウンロードボタンの改善 */
+    .download-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 50px;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s ease;
     }
-    
-    h1, h2, h3 {
-        font-family: 'Helvetica Neue', Arial, sans-serif;
-        color: #2E3B4E;
-        margin-bottom: 1rem;
-    }
-    
-    h1 {
-        font-weight: 700;
-        border-bottom: 2px solid #FF5252;
-        padding-bottom: 0.5rem;
-    }
-    
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 2px;
-    }
-    
-    .stTabs [data-baseweb="tab"] {
-        height: 50px;
-        white-space: pre-wrap;
-        background-color: #f0f2f6;
-        border-radius: 4px 4px 0 0;
-        gap: 1px;
-        padding-top: 10px;
-        padding-bottom: 10px;
-    }
-    
-    .stTabs [aria-selected="true"] {
-        background-color: #4CAF50 !important;
-        color: white !important;
-    }
-    
-    /* カードスタイル */
-    div[data-testid="stExpander"] {
-        border: 1px solid #e0e0e0;
-        border-radius: 10px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin-bottom: 1rem;
-    }
-    
-    /* チャートスタイル */
-    .js-plotly-plot {
-        border-radius: 8px;
-        box-shadow: 0 4px 8px rgba(0,0,0,0.08);
-        margin-bottom: 2rem !important;
-        padding: 1rem !important;
-        background: white;
-    }
-    
-    /* ボタンスタイル */
-    .stButton > button {
-        border-radius: 20px;
-        font-weight: 500;
-        padding: 0.3rem 1rem;
-        border: none;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        transition: all 0.3s;
-    }
-    
-    .stButton > button:hover {
+    .download-button:hover {
         transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+    /* サムネイル画像の改善 */
+    .thumbnail-container {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease;
+    }
+    .thumbnail-container:hover {
+        transform: scale(1.05);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    .thumbnail-container img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+    /* プログレスバーの改善 */
+    .stProgress > div > div {
+        background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+        border-radius: 4px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <style>
+    /* CSVダウンロードボタンの改善 */
+    .download-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: white;
+        padding: 12px 16px;
+        border-radius: 50px;
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        text-decoration: none;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+    
+    .download-button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(16, 185, 129, 0.4);
+    }
+    
+    /* サムネイル画像の改善 */
+    .thumbnail-container {
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        transition: transform 0.2s ease;
+    }
+    
+    .thumbnail-container:hover {
+        transform: scale(1.05);
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
     }
     
-    /* 検索ボックススタイル */
-    div[data-baseweb="base-input"] input {
-        border-radius: 20px !important;
-        padding-left: 15px !important;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05) !important;
+    .thumbnail-container img {
+        width: 100%;
+        height: auto;
+        display: block;
     }
     
-    /* オプションコンテナ */
-    .stExpander {
-        background-color: white;
-        border-radius: 10px;
-        margin-bottom: 1rem;
-        border: 1px solid #e0e0e0;
+    /* プログレスバーの改善 */
+    .stProgress > div > div {
+        background: linear-gradient(90deg, #3b82f6, #1d4ed8);
+        border-radius: 4px;
     }
     </style>
-    """
+    """, unsafe_allow_html=True)
     
-    # サイト全体にスタイルを適用
-    st.markdown(site_css, unsafe_allow_html=True)
-    
-    # 定義されたCSSで装飾されたタイトル
-    st.markdown("<h1>YouTube人気動画リサーチツール</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 1.2em; margin-bottom: 2em;'>YouTube Data APIを使用して、指定したキーワードに関連する人気動画のデータを取得・分析します。</p>", unsafe_allow_html=True)
+    # メインタイトル
+    st.markdown("""
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: #1f2937; font-size: 2.5rem; font-weight: 700; margin-bottom: 0.5rem;">
+🎥 YouTube人気動画リサーチツール
+        </h1>
+        <p style="color: #6b7280; font-size: 1.1rem; margin: 0;">
+            人気動画を分析して、トレンドを把握しましょう
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
     
     # Sidebar for search options
     st.sidebar.header("検索設定")
     
     # Get API key - get_api_key関数を使用してローカル/.envとStreamlit Cloudの両方に対応
     api_key = get_api_key()
+    logger.info(f"Main function - API Key available: {bool(api_key)}")
     
     # API Key input - APIキーが取得できなかった場合はユーザー入力を求める
     if not api_key:
+        st.sidebar.markdown("""
+        <div style="background-color: #f8d7da; padding: 10px; border-radius: 10px; margin-bottom: 10px;">
+            <h4 style="color: #721c24; margin: 0;">⚠️ API Key Required</h4>
+            <p style="margin: 5px 0 0 0;">YouTube Data APIのキーが必要です</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
         api_key = st.sidebar.text_input("YouTube API Key", 
                                         type="password",
                                         help="YouTube Data APIのキーを入力してください")
@@ -318,21 +531,10 @@ def main():
         # 検索ボタンをタップしやすく大きくする
         submitted = st.form_submit_button("検索", use_container_width=True)
     
-    # Initialize session state for video data
-    if 'video_data' not in st.session_state:
-        st.session_state.video_data = None
-        
-    if 'df' not in st.session_state:
-        st.session_state.df = None
-    
-    # Initialize keywords data structure
-    if 'keywords_data' not in st.session_state:
-        st.session_state.keywords_data = {}
-        
     # Initialize session state for keyword search
-    if 'new_search_query' in st.session_state:
+    if 'new_search_query' in st.session_state and st.session_state.new_search_query:
         search_query = st.session_state.new_search_query
-        del st.session_state.new_search_query
+        st.session_state.new_search_query = ""  # 値を削除する代わりに空文字列に設定
     
     # Main content
     if submitted or st.session_state.video_data is not None:
@@ -614,23 +816,35 @@ def main():
                         st.info("※ 上振れ率が高いキーワードは、チャネル登録者数に対して多くの再生数を獲得している市場です。コメント率が高いキーワードは視聴者の反応が活発です。")
 
             # --- フィルタリング・ソート統合セクション ---
+            st.markdown("""
+            <div style="background: white; border-radius: 20px; padding: 24px; margin: 20px 0; 
+                        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); border: 1px solid rgba(102, 126, 234, 0.1);">
+                <h4 style="color: #667eea; margin: 0 0 20px 0; font-weight: 600; text-align: center;">
+                    🎛️ データフィルター & ソート
+                </h4>
+            </div>
+            """, unsafe_allow_html=True)
+            
             col1, col2 = st.columns(2)
             
             # 現在のデータフレームを取得（検索結果から開始）
             current_df = df.copy() if 'df' in locals() and df is not None else None
             
             with col1:
+                st.markdown("**📹 動画タイプ**")
                 # 動画タイプフィルター
                 video_filter = st.selectbox(
-                    "動画タイプフィルタ",
+                    "",
                     ["すべて", "ショート動画のみ", "長編動画のみ"],
-                    key="video_type_filter"
+                    key="video_type_filter",
+                    help="表示する動画の種類を選択してください"
                 )
             
             with col2:
+                st.markdown("**📊 並び替え**")
                 # ソート順序選択機能の追加
                 sort_option = st.selectbox(
-                    "並び替え",
+                    "",
                     [
                         "再生数順 (多い順)",
                         "上振れ率順 (高い順)",
@@ -640,7 +854,8 @@ def main():
                         "投稿日順 (古い順)"
                     ],
                     index=0,
-                    key="sort_option"
+                    key="sort_option",
+                    help="データの並び順を選択してください"
                 )
             
             # フィルタリング・ソート処理を統合実行
@@ -712,7 +927,15 @@ def main():
                 st.warning("表示するデータがありません。検索条件を変更してください。")
             
             # Summary metrics
-            st.subheader("データサマリー")
+            st.markdown("""
+            <div style="background: white; border-radius: 20px; padding: 24px; margin: 30px 0; 
+                        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08); border: 1px solid rgba(102, 126, 234, 0.1);">
+                <h4 style="color: #667eea; margin: 0 0 20px 0; font-weight: 600; text-align: center;">
+                    📊 データサマリー
+                </h4>
+            </div>
+            """, unsafe_allow_html=True)
+            
             col1, col2, col3, col4 = st.columns(4)
             
             # 処理済みデータフレームの取得
@@ -726,7 +949,12 @@ def main():
             # df変数が存在し、データがあるか確認
             if 'df' in locals() and df is not None and len(df) > 0:
                 with col1:
-                    st.metric("取得動画数", len(df) if df is not None else 0)
+                    st.markdown("""
+                    <div class="metric-card" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                        <div class="metric-value">{}</div>
+                        <div class="metric-label">📹 取得動画数</div>
+                    </div>
+                    """.format(len(df) if df is not None else 0), unsafe_allow_html=True)
                 
                 with col2:
                     if df is not None and len(df) > 0 and 'view_count' in df.columns:
@@ -737,16 +965,36 @@ def main():
                             total_views_str = f"{total_views/1_000:.1f}K"
                         else:
                             total_views_str = str(total_views)
-                        st.metric("総再生回数", total_views_str)
+                        st.markdown("""
+                        <div class="metric-card" style="background: linear-gradient(135deg, #48bb78, #38a169);">
+                            <div class="metric-value">{}</div>
+                            <div class="metric-label">👀 総再生回数</div>
+                        </div>
+                        """.format(total_views_str), unsafe_allow_html=True)
                     else:
-                        st.metric("総再生回数", "N/A")
+                        st.markdown("""
+                        <div class="metric-card" style="background: linear-gradient(135deg, #48bb78, #38a169);">
+                            <div class="metric-value">N/A</div>
+                            <div class="metric-label">👀 総再生回数</div>
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 with col3:
                     if df is not None and len(df) > 0 and 'engagement_ratio' in df.columns:
                         avg_engagement = df['engagement_ratio'].mean()
-                        st.metric("平均上振れ係数", f"{avg_engagement:.2f}")
+                        st.markdown("""
+                        <div class="metric-card" style="background: linear-gradient(135deg, #fc7d7b, #f093fb);">
+                            <div class="metric-value">{:.2f}</div>
+                            <div class="metric-label">📈 平均上振れ係数</div>
+                        </div>
+                        """.format(avg_engagement), unsafe_allow_html=True)
                     else:
-                        st.metric("平均上振れ係数", "N/A")
+                        st.markdown("""
+                        <div class="metric-card" style="background: linear-gradient(135deg, #fc7d7b, #f093fb);">
+                            <div class="metric-value">N/A</div>
+                            <div class="metric-label">📈 平均上振れ係数</div>
+                        </div>
+                        """, unsafe_allow_html=True)
                 
                 with col4:
                     if df is not None and len(df) > 0 and 'estimated_24h_views' in df.columns:
@@ -758,21 +1006,36 @@ def main():
                                 total_24h_str = f"{total_24h/1_000:.1f}K"
                             else:
                                 total_24h_str = str(total_24h)
-                            st.metric("推定24時間再生数", total_24h_str)
+                            st.markdown("""
+                            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                                <div class="metric-value">{}</div>
+                                <div class="metric-label">⚡ 推定24時間再生数</div>
+                            </div>
+                            """.format(total_24h_str), unsafe_allow_html=True)
                         else:
-                            st.metric("推定24時間再生数", "N/A")
+                            st.markdown("""
+                            <div class="metric-card" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                                <div class="metric-value">N/A</div>
+                                <div class="metric-label">⚡ 推定24時間再生数</div>
+                            </div>
+                            """, unsafe_allow_html=True)
                     else:
-                        st.metric("推定24時間再生数", "N/A")
+                        st.markdown("""
+                        <div class="metric-card" style="background: linear-gradient(135deg, #f093fb, #f5576c);">
+                            <div class="metric-value">N/A</div>
+                            <div class="metric-label">⚡ 推定24時間再生数</div>
+                        </div>
+                        """, unsafe_allow_html=True)
             else:
                 # データがない場合はダミー表示
-                with col1:
-                    st.metric("取得動画数", "0")
-                with col2:
-                    st.metric("総再生回数", "0")
-                with col3:
-                    st.metric("平均上振れ係数", "N/A")
-                with col4:
-                    st.metric("推定24時間再生数", "N/A")
+                for i, (icon, label) in enumerate([("📹", "取得動画数"), ("👀", "総再生回数"), ("📈", "平均上振れ係数"), ("⚡", "推定24時間再生数")]):
+                    with [col1, col2, col3, col4][i]:
+                        st.markdown(f"""
+                        <div class="metric-card" style="background: linear-gradient(135deg, #cbd5e0, #a0aec0);">
+                            <div class="metric-value">0</div>
+                            <div class="metric-label">{icon} {label}</div>
+                        </div>
+                        """, unsafe_allow_html=True)
             
             # 関連キーワードサジェストをサイドバーに表示
             if search_query and len(search_query.strip()) > 1:
