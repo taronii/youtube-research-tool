@@ -46,13 +46,6 @@ def get_api_key():
         # secrets.toml が無いローカル環境では FileNotFoundError が発生する
         return ""
 
-# APIキーを取得
-api_key = get_api_key()
-print(f"DEBUG: API Key available: {bool(api_key)}")
-logger.info(f"API Key available: {bool(api_key)}")
-# APIキーがない場合のデバッグ情報
-if not api_key:
-    logger.warning("No API key found in environment variables or Streamlit secrets")
 
 # Function to create a download link for the dataframe
 def get_csv_download_link(df, filename="youtube_data.csv"):
