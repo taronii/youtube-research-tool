@@ -9,3 +9,11 @@ __pycache__/
 .vscode/
 # Streamlit Cloud
 .streamlit/secrets.toml
+
+# Virtual environment
+venv/
+
+# Native libraries (large binaries)
+*.dylib
+*.so
+*.dll
